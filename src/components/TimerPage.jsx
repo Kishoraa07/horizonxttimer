@@ -28,6 +28,236 @@ const MISSION_QUOTES = [
   "「TELEMETRY CONFIRMED」All sensors nominal. The cosmos belongs to those who dare to build."
 ];
 
+// =========================================================================
+// ORBITAL DIAL HUD COMPONENT (INDIVIDUAL CIRCULAR PROGRESS & TRAVELING SATELLITE)
+// =========================================================================
+const OrbitalDial = ({
+  value,
+  subValue,
+  label,
+  subLabel,
+  badgeText,
+  fraction = 0,
+  colorScheme = 'cyan', // 'cyan' | 'navy' | 'amber'
+  isRunning = false,
+}) => {
+  const safeFraction = Math.min(1, Math.max(0, fraction));
+  const r = 58;
+  const circumference = 2 * Math.PI * r; // ~364.42
+  const strokeDashoffset = circumference - safeFraction * circumference;
+
+  // Exact satellite coordinate inside -rotate-90 SVG coordinate system
+  const theta = safeFraction * 2 * Math.PI;
+  const satX = 80 + r * Math.cos(theta);
+  const satY = 80 + r * Math.sin(theta);
+
+  // 12 compass degree ticks around the dial (every 30 deg)
+  const ticks = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
+
+  const strokeColor =
+    colorScheme === 'amber'
+      ? '#f59e0b'
+      : colorScheme === 'cyan'
+      ? '#00c2cb'
+      : '#0b1b3d';
+
+  const gradientId = `grad-${label.toLowerCase()}`;
+
+  return (
+    <div className="relative group flex-1 min-w-[100px] sm:min-w-[130px] max-w-[210px] flex flex-col items-center justify-between p-2.5 sm:p-3.5 rounded-3xl bg-white/95 border border-[#0b1b3d]/10 backdrop-blur-2xl shadow-[0_10px_30px_rgba(11,27,61,0.06),inset_0_1px_2px_rgba(255,255,255,1)] hover:shadow-[0_16px_40px_rgba(11,27,61,0.1)] transition-all duration-300">
+      {/* Dynamic Glow Halo */}
+      {isRunning && (
+        <div
+          className="absolute -inset-1 rounded-3xl blur-md opacity-25 pointer-events-none transition-opacity"
+          style={{ backgroundColor: strokeColor }}
+        />
+      )}
+
+      {/* Dial Top Status Pill */}
+      <div className="w-full flex items-center justify-between px-1 mb-0.5 z-10 text-[9px] font-mono">
+        <span className="flex items-center gap-1 text-slate-500 font-semibold truncate">
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              isRunning ? 'animate-ping' : 'opacity-50'
+            }`}
+            style={{ backgroundColor: strokeColor }}
+          />
+          {badgeText || subLabel}
+        </span>
+        <span
+          className="font-bold text-[10px]"
+          style={{ color: strokeColor }}
+        >
+          {Math.round(safeFraction * 100)}%
+        </span>
+      </div>
+
+      {/* Multi-Ring SVG Canvas */}
+      <div className="relative w-full aspect-square max-w-[180px] flex items-center justify-center my-0.5">
+        <svg
+          className="w-full h-full -rotate-90 transform drop-shadow-sm"
+          viewBox="0 0 160 160"
+        >
+          <defs>
+            {/* Hours: Cyan to Deep Space Navy */}
+            <linearGradient id="grad-hours" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#00c2cb" />
+              <stop offset="60%" stopColor="#0b1b3d" />
+              <stop offset="100%" stopColor="#f59e0b" />
+            </linearGradient>
+
+            {/* Minutes: Cyan to Navy */}
+            <linearGradient id="grad-minutes" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#00c2cb" />
+              <stop offset="70%" stopColor="#0b1b3d" />
+              <stop offset="100%" stopColor="#00c2cb" />
+            </linearGradient>
+
+            {/* Seconds: Amber Gold to Bright Radiant Flame */}
+            <linearGradient id="grad-seconds" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#f59e0b" />
+              <stop offset="50%" stopColor="#f97316" />
+              <stop offset="100%" stopColor="#ef4444" />
+            </linearGradient>
+
+            {/* Satellite Bloom Filter */}
+            <filter id={`bloom-${label.toLowerCase()}`} x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          {/* 1. Outer Orbit Guide Ring with Micro-Ticks */}
+          <circle
+            cx="80"
+            cy="80"
+            r="72"
+            stroke="#cbd5e1"
+            strokeWidth="1"
+            strokeDasharray="1.5 5"
+            fill="none"
+            opacity="0.6"
+          />
+
+          {/* 2. Degree & Cardinal Crosshairs */}
+          {ticks.map((deg, i) => {
+            const rad = (deg * Math.PI) / 180;
+            const isCardinal = i % 3 === 0;
+            const len = isCardinal ? 6 : 3;
+            const r1 = 72 - len;
+            const r2 = 72;
+            return (
+              <line
+                key={deg}
+                x1={80 + r1 * Math.cos(rad)}
+                y1={80 + r1 * Math.sin(rad)}
+                x2={80 + r2 * Math.cos(rad)}
+                y2={80 + r2 * Math.sin(rad)}
+                stroke={isCardinal ? '#64748b' : '#94a3b8'}
+                strokeWidth={isCardinal ? '1.5' : '1'}
+                strokeLinecap="round"
+              />
+            );
+          })}
+
+          {/* 3. Base Track Ring */}
+          <circle
+            cx="80"
+            cy="80"
+            r={r}
+            stroke="#e2e8f0"
+            strokeWidth="7"
+            fill="none"
+          />
+
+          {/* 4. Concentric Inner Stardust Track */}
+          <circle
+            cx="80"
+            cy="80"
+            r="46"
+            stroke="#f1f5f9"
+            strokeWidth="1"
+            strokeDasharray="2 3"
+            fill="none"
+          />
+
+          {/* 5. Active Orbital Progress Arc */}
+          <circle
+            cx="80"
+            cy="80"
+            r={r}
+            stroke={`url(#${gradientId})`}
+            strokeWidth="7.5"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            fill="none"
+            className="transition-all duration-300"
+          />
+
+          {/* 6. Active Traveling Satellite Node */}
+          {isRunning && (
+            <g className="transition-transform duration-200">
+              {/* Radar pulse wave */}
+              <circle
+                cx={satX}
+                cy={satY}
+                r="7.5"
+                fill="none"
+                stroke={strokeColor}
+                strokeWidth="1.2"
+                opacity="0.8"
+                className="animate-ping"
+              />
+              {/* Glowing body */}
+              <circle
+                cx={satX}
+                cy={satY}
+                r="4.8"
+                fill={strokeColor}
+                filter={`url(#bloom-${label.toLowerCase()})`}
+              />
+              {/* White photon core */}
+              <circle
+                cx={satX}
+                cy={satY}
+                r="2"
+                fill="#ffffff"
+              />
+            </g>
+          )}
+        </svg>
+
+        {/* Center Digital Telemetry Display */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center select-none pointer-events-none">
+          <div className="flex items-baseline justify-center">
+            <span className="font-['Bebas_Neue'] text-5xl sm:text-6xl md:text-6xl lg:text-5xl xl:text-6xl leading-none text-[#0b1b3d] tracking-tight drop-shadow-[0_2px_6px_rgba(11,27,61,0.1)]">
+              {value}
+            </span>
+            {subValue && (
+              <span className="font-mono text-xs sm:text-sm text-[#b45309] font-bold ml-0.5">
+                {subValue}
+              </span>
+            )}
+          </div>
+          <span className="font-mono text-[9px] sm:text-[10px] font-bold text-slate-500 tracking-widest uppercase mt-0.5">
+            {label}
+          </span>
+        </div>
+      </div>
+
+      {/* Bottom Sub-Telemetry Tag */}
+      <div className="w-full mt-1 pt-1 border-t border-slate-100 flex items-center justify-between text-[8px] sm:text-[9px] font-mono text-slate-500 px-1 z-10">
+        <span className="text-slate-400 uppercase tracking-wider">{subLabel}</span>
+        <span className="font-bold text-[#0b1b3d]">{value} {label.slice(0, 3)}</span>
+      </div>
+    </div>
+  );
+};
+
 const TimerPage = ({ onNavigateToGallery }) => {
   const {
     remainingSeconds,
@@ -160,10 +390,6 @@ const TimerPage = ({ onNavigateToGallery }) => {
     if (elapsedHoursExact >= m.hour) return idx;
     return acc;
   }, 0);
-
-  const gaugeRadius = 38;
-  const gaugeCircumference = 2 * Math.PI * gaugeRadius;
-  const gaugeStrokeDashoffset = gaugeCircumference - (parseFloat(progressPercent) / 100) * gaugeCircumference;
 
   return (
     <div className="relative min-h-screen lg:h-screen lg:max-h-screen lg:overflow-hidden w-full bg-[#ffffff] text-[#0b1b3d] flex flex-col justify-between selection:bg-[#f59e0b] selection:text-white font-['Inter']">
@@ -360,127 +586,73 @@ const TimerPage = ({ onNavigateToGallery }) => {
             {/* Top Amber Horizon Shimmer Line */}
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#f59e0b] to-transparent opacity-80 pointer-events-none" />
 
-            {/* Time Cards & Circular Completion Gauge */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 my-auto">
-              {/* Digit Cards Group */}
-              <div className="flex items-center justify-center gap-2 sm:gap-3 flex-1 w-full">
-                {/* Hours Box */}
-                <div className="relative group flex-1 max-w-[125px] sm:max-w-[155px]">
-                  {isRunning && (
-                    <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500/20 via-[#f59e0b]/20 to-cyan-500/20 rounded-2xl blur-sm opacity-60 animate-horizon-sweep" />
-                  )}
-                  <div className={`relative flex flex-col items-center justify-center bg-white/95 border rounded-2xl p-2.5 sm:p-3.5 backdrop-blur-2xl transition-all duration-300 ${
-                    isRunning
-                      ? 'border-[#00c2cb]/50 shadow-[0_10px_30px_rgba(11,27,61,0.08),inset_0_1px_2px_rgba(255,255,255,1)]'
-                      : 'border-slate-200'
-                  }`}>
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <span className="text-[9px] font-mono font-bold text-cyan-700 tracking-wider">HRS</span>
-                    </div>
-                    <span className="font-['Bebas_Neue'] text-5xl sm:text-7xl lg:text-7xl xl:text-8xl leading-none tracking-tight text-[#0b1b3d] drop-shadow-[0_2px_8px_rgba(11,27,61,0.1)]">
-                      {hours.toString().padStart(2, '0')}
-                    </span>
-                    <span className="font-['Inter'] text-[8px] sm:text-[10px] text-slate-500 font-bold tracking-widest uppercase mt-1">
-                      HOURS
-                    </span>
-                  </div>
-                </div>
+            {/* Top Flight Telemetry Status Strip */}
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1 mb-1.5 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-lg bg-[#0b1b3d] text-white font-mono text-[10px] font-bold tracking-wider flex items-center gap-1.5 shadow-sm">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-[#f59e0b] animate-ping' : 'bg-slate-400'}`} />
+                  ORBITAL HUD • 36H MISSION
+                </span>
+                <span className="font-mono text-xs text-[#0b1b3d] font-semibold hidden sm:inline">
+                  Velocity: <strong className="text-cyan-800">{progressPercent}% Flown</strong>
+                </span>
+              </div>
+              <div className="flex items-center gap-2 font-mono text-[11px] text-slate-600">
+                <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200">
+                  Phase: <strong className="text-cyan-800">{MILESTONES[currentMilestoneIndex].code} ({MILESTONES[currentMilestoneIndex].label})</strong>
+                </span>
+              </div>
+            </div>
 
-                <span className={`text-[#f59e0b] text-2xl sm:text-3xl font-bold ${isRunning ? 'animate-pulse' : 'opacity-40'}`}>:</span>
+            {/* MULTI-RING ORBITAL HUD TRIPLE RINGS */}
+            <div className="flex items-center justify-between gap-1.5 sm:gap-3 my-auto w-full py-1">
+              {/* HOURS ORBITAL DIAL */}
+              <OrbitalDial
+                value={hours.toString().padStart(2, '0')}
+                label="HOURS"
+                subLabel="T-ORBIT 01"
+                badgeText="ORBIT-01 • 36H"
+                fraction={hours / 36}
+                colorScheme="cyan"
+                isRunning={isRunning}
+              />
 
-                {/* Minutes Box */}
-                <div className="relative group flex-1 max-w-[125px] sm:max-w-[155px]">
-                  {isRunning && (
-                    <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500/20 via-[#f59e0b]/20 to-cyan-500/20 rounded-2xl blur-sm opacity-60 animate-horizon-sweep" />
-                  )}
-                  <div className={`relative flex flex-col items-center justify-center bg-white/95 border rounded-2xl p-2.5 sm:p-3.5 backdrop-blur-2xl transition-all duration-300 ${
-                    isRunning
-                      ? 'border-[#00c2cb]/50 shadow-[0_10px_30px_rgba(11,27,61,0.08),inset_0_1px_2px_rgba(255,255,255,1)]'
-                      : 'border-slate-200'
-                  }`}>
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <span className="text-[9px] font-mono font-bold text-cyan-700 tracking-wider">MINS</span>
-                    </div>
-                    <span className="font-['Bebas_Neue'] text-5xl sm:text-7xl lg:text-7xl xl:text-8xl leading-none tracking-tight text-[#0b1b3d] drop-shadow-[0_2px_8px_rgba(11,27,61,0.1)]">
-                      {minutes.toString().padStart(2, '0')}
-                    </span>
-                    <span className="font-['Inter'] text-[8px] sm:text-[10px] text-slate-500 font-bold tracking-widest uppercase mt-1">
-                      MINUTES
-                    </span>
-                  </div>
-                </div>
-
-                <span className={`text-[#f59e0b] text-2xl sm:text-3xl font-bold ${isRunning ? 'animate-pulse' : 'opacity-40'}`}>:</span>
-
-                {/* Seconds Box with Tenths */}
-                <div className="relative group flex-1 max-w-[125px] sm:max-w-[155px]">
-                  {isRunning && (
-                    <div className="absolute -inset-1 bg-gradient-to-r from-[#f59e0b]/20 via-white/40 to-[#f59e0b]/20 rounded-2xl blur-sm opacity-60 animate-horizon-sweep" />
-                  )}
-                  <div className={`relative flex flex-col items-center justify-center bg-white/95 border rounded-2xl p-2.5 sm:p-3.5 backdrop-blur-2xl transition-all duration-300 ${
-                    isRunning
-                      ? 'border-[#f59e0b]/60 shadow-[0_10px_30px_rgba(245,158,11,0.12),inset_0_1px_2px_rgba(255,255,255,1)]'
-                      : 'border-slate-200'
-                  }`}>
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <span className="text-[9px] font-mono font-bold text-[#b45309] tracking-wider">SECS</span>
-                    </div>
-                    <div className="flex items-baseline justify-center">
-                      <span className="font-['Bebas_Neue'] text-5xl sm:text-7xl lg:text-7xl xl:text-8xl leading-none tracking-tight text-[#0b1b3d] drop-shadow-[0_2px_8px_rgba(11,27,61,0.1)]">
-                        {seconds.toString().padStart(2, '0')}
-                      </span>
-                      <span className="font-mono text-xs sm:text-sm text-[#b45309] ml-0.5 font-bold">
-                        .{tenths}
-                      </span>
-                    </div>
-                    <span className="font-['Inter'] text-[8px] sm:text-[10px] text-slate-500 font-bold tracking-widest uppercase mt-1">
-                      SECONDS
-                    </span>
-                  </div>
-                </div>
+              {/* INTER-ORBIT SIGNAL BRIDGE 1 */}
+              <div className="hidden sm:flex flex-col items-center justify-center gap-1.5 px-0.5 shrink-0 select-none opacity-80">
+                <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-cyan-500 animate-pulse' : 'bg-slate-300'}`} />
+                <div className="w-px h-8 bg-gradient-to-b from-cyan-400 via-slate-300 to-[#0b1b3d]" />
+                <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-[#0b1b3d] animate-ping' : 'bg-slate-300'}`} />
               </div>
 
-              {/* Circular Space Mission Radial Gauge */}
-              <div className="relative w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center shrink-0">
-                <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 90 90">
-                  <circle
-                    cx="45"
-                    cy="45"
-                    r={gaugeRadius}
-                    stroke="#e2e8f0"
-                    strokeWidth="5"
-                    fill="transparent"
-                  />
-                  <circle
-                    cx="45"
-                    cy="45"
-                    r={gaugeRadius}
-                    stroke="url(#progressGaugeGradientLight)"
-                    strokeWidth="5"
-                    strokeDasharray={gaugeCircumference}
-                    strokeDashoffset={gaugeStrokeDashoffset}
-                    strokeLinecap="round"
-                    fill="transparent"
-                    className="transition-all duration-500"
-                  />
-                  <defs>
-                    <linearGradient id="progressGaugeGradientLight" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#00a3c4" />
-                      <stop offset="50%" stopColor="#0b1b3d" />
-                      <stop offset="100%" stopColor="#f59e0b" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <div className="absolute flex flex-col items-center justify-center text-center">
-                  <span className="font-mono text-[8px] text-cyan-800 leading-none uppercase font-bold">ORBIT</span>
-                  <span className="font-['Bebas_Neue'] text-lg sm:text-xl text-[#0b1b3d] leading-none">
-                    {progressPercent}%
-                  </span>
-                  <span className="text-[7px] font-mono text-slate-500 uppercase tracking-wider">
-                    DONE
-                  </span>
-                </div>
+              {/* MINUTES ORBITAL DIAL */}
+              <OrbitalDial
+                value={minutes.toString().padStart(2, '0')}
+                label="MINUTES"
+                subLabel="T-ORBIT 02"
+                badgeText="ORBIT-02 • 60M"
+                fraction={minutes / 60}
+                colorScheme="navy"
+                isRunning={isRunning}
+              />
+
+              {/* INTER-ORBIT SIGNAL BRIDGE 2 */}
+              <div className="hidden sm:flex flex-col items-center justify-center gap-1.5 px-0.5 shrink-0 select-none opacity-80">
+                <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-[#0b1b3d] animate-ping' : 'bg-slate-300'}`} />
+                <div className="w-px h-8 bg-gradient-to-b from-[#0b1b3d] via-amber-300 to-[#f59e0b]" />
+                <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-[#f59e0b] animate-pulse' : 'bg-slate-300'}`} />
               </div>
+
+              {/* SECONDS ORBITAL DIAL */}
+              <OrbitalDial
+                value={seconds.toString().padStart(2, '0')}
+                subValue={`.${tenths}`}
+                label="SECONDS"
+                subLabel="TELEMETRY"
+                badgeText="ACTIVE • 60S"
+                fraction={(seconds + tenths / 10) / 60}
+                colorScheme="amber"
+                isRunning={isRunning}
+              />
             </div>
 
             {/* Progress Summary Pill */}

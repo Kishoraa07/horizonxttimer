@@ -173,6 +173,112 @@ const CATEGORIES = [
   { id: 'Awards & Glory', label: 'Touchdown & Glory', code: 'T+36H' },
 ];
 
+const CompactOrbitalDial = ({
+  value,
+  subValue,
+  label,
+  subLabel,
+  fraction = 0,
+  colorScheme = 'cyan',
+  isRunning = false,
+}) => {
+  const safeFraction = Math.min(1, Math.max(0, fraction));
+  const r = 42;
+  const circumference = 2 * Math.PI * r;
+  const strokeDashoffset = circumference - safeFraction * circumference;
+
+  const theta = safeFraction * 2 * Math.PI;
+  const satX = 54 + r * Math.cos(theta);
+  const satY = 54 + r * Math.sin(theta);
+
+  const strokeColor =
+    colorScheme === 'amber'
+      ? '#f59e0b'
+      : colorScheme === 'cyan'
+      ? '#00c2cb'
+      : '#0b1b3d';
+
+  const gradientId = `gallery-dial-${label.toLowerCase()}`;
+
+  return (
+    <div className="relative group flex-1 flex flex-col items-center justify-between p-1.5 sm:p-2 rounded-2xl bg-white/95 border border-[#0b1b3d]/10 backdrop-blur-xl shadow-xs transition-all">
+      {isRunning && (
+        <div
+          className="absolute -inset-0.5 rounded-2xl blur-xs opacity-20 pointer-events-none"
+          style={{ backgroundColor: strokeColor }}
+        />
+      )}
+      <div className="w-full flex items-center justify-between px-1 text-[8px] font-mono text-slate-500">
+        <span className="truncate">{subLabel}</span>
+        <span className="font-bold" style={{ color: strokeColor }}>
+          {Math.round(safeFraction * 100)}%
+        </span>
+      </div>
+
+      <div className="relative w-full aspect-square max-w-[105px] flex items-center justify-center my-0.5">
+        <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 108 108">
+          <defs>
+            <linearGradient id="gallery-dial-hrs" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#00c2cb" />
+              <stop offset="100%" stopColor="#0b1b3d" />
+            </linearGradient>
+            <linearGradient id="gallery-dial-mins" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#00c2cb" />
+              <stop offset="100%" stopColor="#0b1b3d" />
+            </linearGradient>
+            <linearGradient id="gallery-dial-secs" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#f59e0b" />
+              <stop offset="100%" stopColor="#f97316" />
+            </linearGradient>
+          </defs>
+
+          {/* Guide ticks */}
+          <circle cx="54" cy="54" r="50" stroke="#cbd5e1" strokeWidth="0.8" strokeDasharray="1 4" fill="none" opacity="0.6" />
+          {/* Base Track */}
+          <circle cx="54" cy="54" r={r} stroke="#e2e8f0" strokeWidth="5.5" fill="none" />
+          {/* Progress Arc */}
+          <circle
+            cx="54"
+            cy="54"
+            r={r}
+            stroke={`url(#${gradientId})`}
+            strokeWidth="5.5"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            fill="none"
+            className="transition-all duration-300"
+          />
+
+          {/* Traveling Satellite Dot */}
+          {isRunning && (
+            <g>
+              <circle cx={satX} cy={satY} r="3.5" fill={strokeColor} />
+              <circle cx={satX} cy={satY} r="1.5" fill="#ffffff" />
+            </g>
+          )}
+        </svg>
+
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center select-none pointer-events-none">
+          <div className="flex items-baseline justify-center">
+            <span className="font-['Bebas_Neue'] text-3xl sm:text-4xl text-[#0b1b3d] leading-none">
+              {value}
+            </span>
+            {subValue && (
+              <span className="font-mono text-[10px] text-[#b45309] font-bold ml-0.5">
+                {subValue}
+              </span>
+            )}
+          </div>
+          <span className="font-mono text-[8px] font-bold text-slate-500 uppercase tracking-widest leading-none mt-0.5">
+            {label}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const RealtimeGalleryPage = ({ onNavigateToTimer }) => {
   // Photos state with LocalStorage persistence for user-uploaded moments
   const [photos, setPhotos] = useState(() => {
@@ -606,46 +712,43 @@ const RealtimeGalleryPage = ({ onNavigateToTimer }) => {
 
           {/* Digits Display + SVG Circular Gauge in Center */}
           <div className="flex flex-col items-center justify-center my-auto py-2 sm:py-3 gap-3">
-            {/* Countdown Cards */}
-            <div className="flex items-center justify-center gap-2 sm:gap-2.5">
-              {/* Hours Box */}
-              <div className="flex flex-col items-center justify-center bg-white/95 border border-[#0b1b3d]/10 rounded-2xl p-2 sm:p-3 min-w-[65px] sm:min-w-[82px] shadow-[0_8px_20px_rgba(11,27,61,0.06),inset_0_1px_1px_rgba(255,255,255,1)]">
-                <div className="flex items-center gap-1 mb-0.5">
-                  <span className="text-[8px] font-mono font-bold text-cyan-600">HRS</span>
-                </div>
-                <span className="font-['Bebas_Neue'] text-4xl sm:text-5xl text-[#0b1b3d] leading-none tracking-tight">
-                  {timerHours.toString().padStart(2, '0')}
-                </span>
+            {/* Compact Orbital HUD Rings */}
+            <div className="flex items-center justify-between gap-1.5 sm:gap-2 w-full">
+              <CompactOrbitalDial
+                value={timerHours.toString().padStart(2, '0')}
+                label="HRS"
+                subLabel="ORBIT-1"
+                fraction={timerHours / 36}
+                colorScheme="cyan"
+                isRunning={isTimerRunning}
+              />
+
+              <div className="flex flex-col items-center gap-1 opacity-60">
+                <div className={`w-1 h-1 rounded-full ${isTimerRunning ? 'bg-cyan-500 animate-ping' : 'bg-slate-300'}`} />
               </div>
 
-              <span className={`text-[#f59e0b] text-xl sm:text-2xl font-bold ${isTimerRunning ? 'animate-pulse' : 'opacity-40'}`}>:</span>
+              <CompactOrbitalDial
+                value={timerMinutes.toString().padStart(2, '0')}
+                label="MINS"
+                subLabel="ORBIT-2"
+                fraction={timerMinutes / 60}
+                colorScheme="navy"
+                isRunning={isTimerRunning}
+              />
 
-              {/* Minutes Box */}
-              <div className="flex flex-col items-center justify-center bg-white/95 border border-[#0b1b3d]/10 rounded-2xl p-2 sm:p-3 min-w-[65px] sm:min-w-[82px] shadow-[0_8px_20px_rgba(11,27,61,0.06),inset_0_1px_1px_rgba(255,255,255,1)]">
-                <div className="flex items-center gap-1 mb-0.5">
-                  <span className="text-[8px] font-mono font-bold text-cyan-600">MINS</span>
-                </div>
-                <span className="font-['Bebas_Neue'] text-4xl sm:text-5xl text-[#0b1b3d] leading-none tracking-tight">
-                  {timerMinutes.toString().padStart(2, '0')}
-                </span>
+              <div className="flex flex-col items-center gap-1 opacity-60">
+                <div className={`w-1 h-1 rounded-full ${isTimerRunning ? 'bg-[#f59e0b] animate-ping' : 'bg-slate-300'}`} />
               </div>
 
-              <span className={`text-[#f59e0b] text-xl sm:text-2xl font-bold ${isTimerRunning ? 'animate-pulse' : 'opacity-40'}`}>:</span>
-
-              {/* Seconds Box with Tenths */}
-              <div className="flex flex-col items-center justify-center bg-white/95 border border-[#0b1b3d]/10 rounded-2xl p-2 sm:p-3 min-w-[65px] sm:min-w-[82px] shadow-[0_8px_20px_rgba(11,27,61,0.06),inset_0_1px_1px_rgba(255,255,255,1)]">
-                <div className="flex items-center gap-1 mb-0.5">
-                  <span className="text-[8px] font-mono font-bold text-[#f59e0b]">SECS</span>
-                </div>
-                <div className="flex items-baseline justify-center">
-                  <span className="font-['Bebas_Neue'] text-4xl sm:text-5xl text-[#0b1b3d] leading-none tracking-tight">
-                    {timerSecs.toString().padStart(2, '0')}
-                  </span>
-                  <span className="font-mono text-xs sm:text-sm text-[#f59e0b] ml-0.5 font-bold">
-                    .{tenths}
-                  </span>
-                </div>
-              </div>
+              <CompactOrbitalDial
+                value={timerSecs.toString().padStart(2, '0')}
+                subValue={`.${tenths}`}
+                label="SECS"
+                subLabel="SYNC"
+                fraction={(timerSecs + tenths / 10) / 60}
+                colorScheme="amber"
+                isRunning={isTimerRunning}
+              />
             </div>
 
             {/* Circular Progress Gauge & Overall Completion */}
