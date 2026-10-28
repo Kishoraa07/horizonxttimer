@@ -267,10 +267,22 @@ const TimerPage = ({ onNavigateToGallery }) => {
     progressPercent,
     isTimerRunning: isRunning,
     syncStatus,
+    targetEndTime,
     togglePlayPause,
     resetTimer,
     adjustTime,
+    setTargetEndTimeExplicit,
   } = useSyncedTimer();
+
+  const handleSetEndAtSharp910AM = useCallback(() => {
+    const target = new Date();
+    target.setHours(9, 10, 0, 0);
+    if (target.getTime() <= Date.now()) {
+      target.setDate(target.getDate() + 1);
+      target.setHours(9, 10, 0, 0);
+    }
+    setTargetEndTimeExplicit(target.getTime(), TOTAL_36_HOURS_SECONDS);
+  }, [setTargetEndTimeExplicit]);
 
   const mode = 'countdown';
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -612,7 +624,7 @@ const TimerPage = ({ onNavigateToGallery }) => {
                 label="HOURS"
                 subLabel="T-ORBIT 01"
                 badgeText="ORBIT-01 • 36H"
-                fraction={hours / 36}
+                fraction={displaySeconds / totalSeconds}
                 colorScheme="cyan"
                 isRunning={isRunning}
               />
@@ -630,7 +642,7 @@ const TimerPage = ({ onNavigateToGallery }) => {
                 label="MINUTES"
                 subLabel="T-ORBIT 02"
                 badgeText="ORBIT-02 • 60M"
-                fraction={minutes / 60}
+                fraction={(minutes * 60 + seconds) / 3600}
                 colorScheme="navy"
                 isRunning={isRunning}
               />
@@ -669,6 +681,14 @@ const TimerPage = ({ onNavigateToGallery }) => {
                 <span className="text-[#b45309] font-mono uppercase text-[10px]">REMAINING:</span>
                 <strong className="text-[#b45309]">{hours}h {minutes}m {seconds}s</strong>
               </span>
+              {targetEndTime && (
+                <span className="px-2.5 py-0.5 rounded-full bg-cyan-50 border border-cyan-300 flex items-center gap-1.5 shadow-xs">
+                  <span className="text-cyan-800 font-mono uppercase text-[10px]">TARGET:</span>
+                  <strong className="text-[#0b1b3d] font-bold">
+                    {new Date(targetEndTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </strong>
+                </span>
+              )}
             </div>
 
             {/* Linear Milestone Progress Bar */}
@@ -747,7 +767,17 @@ const TimerPage = ({ onNavigateToGallery }) => {
               </div>
 
               {/* Presets Pills */}
-              <div className="flex items-center gap-1.5 text-xs font-mono text-slate-600">
+              <div className="flex items-center gap-1.5 text-xs font-mono text-slate-600 flex-wrap">
+                {/* Quick Target: Sharp 9:10 AM */}
+                <button
+                  onClick={handleSetEndAtSharp910AM}
+                  title="Lock countdown to end exactly at Sharp 9:10 AM"
+                  className="px-2.5 py-1 rounded-lg border border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold transition-all cursor-pointer text-[10px] shadow-xs flex items-center gap-1 hover:scale-102"
+                >
+                  <span className="text-[#f59e0b]">🎯</span>
+                  <span>End at Sharp 9:10 AM</span>
+                </button>
+
                 <button
                   onClick={() => resetTimer(36 * 3600)}
                   className={`px-2 py-1 rounded-lg border transition-all cursor-pointer text-[10px] ${

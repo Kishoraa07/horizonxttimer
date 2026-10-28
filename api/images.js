@@ -1,10 +1,10 @@
 import { v2 as cloudinary } from 'cloudinary'
 import { connectToDatabase } from './_db.js'
 
-// Configure Cloudinary if environment variables are present
-const cloudName = process.env.CLOUDINARY_CLOUD_NAME
-const apiKey = process.env.CLOUDINARY_API_KEY
-const apiSecret = process.env.CLOUDINARY_API_SECRET
+// Configure Cloudinary if environment variables are present or use hardcoded credentials
+const cloudName = process.env.CLOUDINARY_CLOUD_NAME || 'r4pimpda'
+const apiKey = process.env.CLOUDINARY_API_KEY || '417251125912271'
+const apiSecret = process.env.CLOUDINARY_API_SECRET || '417251125912271'
 
 const hasCloudinary = Boolean(cloudName && apiKey && apiSecret)
 

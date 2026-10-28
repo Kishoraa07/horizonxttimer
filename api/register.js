@@ -1,16 +1,13 @@
 import { MongoClient } from 'mongodb'
 
-const uri = process.env.MONGODB_URI
+// Hardcoded fallback for seamless deployment without Vercel dashboard env setup
+const uri = process.env.MONGODB_URI || 'mongodb+srv://814724104075_db_user:eZASHzHoR2WzQJ8y@cluster0.qi9waxe.mongodb.net/'
 const options = {}
 
 let cachedClient = null
 let cachedDb = null
 
 async function connectToDatabase() {
-  if (!uri) {
-    throw new Error('MONGODB_URI environment variable is missing. Please set MONGODB_URI in Vercel Environment Variables.')
-  }
-
   if (cachedClient && cachedDb) {
     return { client: cachedClient, db: cachedDb }
   }

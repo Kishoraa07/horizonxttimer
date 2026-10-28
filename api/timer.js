@@ -2,14 +2,51 @@ import { connectToDatabase } from './_db.js'
 
 const TOTAL_36_HOURS_SECONDS = 36 * 3600 // 129,600 seconds
 
+// Hardcoded fallback timestamps for seamless Vercel deployment (Sharp 9:10 AM end)
+const HARDCODED_START_TIME = '2026-10-26T21:10:00+05:30'
+const HARDCODED_TARGET_END_TIME = '2026-10-28T09:10:00+05:30'
+
+// Resolve authoritative target end time (defaults to Sharp 9:10 AM)
+function resolveTargetEndTime() {
+  const envVal = process.env.HORIZONXT_TARGET_END_TIME || process.env.MEDAITHON_TARGET_END_TIME || HARDCODED_TARGET_END_TIME
+  if (envVal) {
+    if (envVal.toLowerCase() === 'sharp9' || envVal.toLowerCase() === 'sharp9am') {
+      const d = new Date()
+      d.setHours(9, 0, 0, 0)
+      if (d.getTime() <= Date.now()) {
+        d.setDate(d.getDate() + 1)
+        d.setHours(9, 0, 0, 0)
+      }
+      return d.getTime()
+    }
+    if (envVal.toLowerCase() === 'sharp910' || envVal.toLowerCase() === 'sharp910am' || envVal.toLowerCase() === '9:10') {
+      const d = new Date()
+      d.setHours(9, 10, 0, 0)
+      if (d.getTime() <= Date.now()) {
+        d.setDate(d.getDate() + 1)
+        d.setHours(9, 10, 0, 0)
+      }
+      return d.getTime()
+    }
+    const parsed = new Date(envVal).getTime()
+    if (!isNaN(parsed)) return parsed
+  }
+  return new Date(HARDCODED_TARGET_END_TIME).getTime()
+}
+
+function resolveStartTime(targetEndTime) {
+  const envVal = process.env.HORIZONXT_START_TIME || process.env.MEDAITHON_START_TIME || HARDCODED_START_TIME
+  if (envVal) {
+    const parsed = new Date(envVal).getTime()
+    if (!isNaN(parsed)) return parsed
+  }
+  return targetEndTime - TOTAL_36_HOURS_SECONDS * 1000
+}
+
 // In-memory fallback if MongoDB is not connected
 if (!global.__HORIZONXT_TIMER_FALLBACK__) {
-  const fallbackStart = (process.env.HORIZONXT_START_TIME || process.env.MEDAITHON_START_TIME)
-    ? new Date(process.env.HORIZONXT_START_TIME || process.env.MEDAITHON_START_TIME).getTime()
-    : Date.now()
-  const fallbackEnd = (process.env.HORIZONXT_TARGET_END_TIME || process.env.MEDAITHON_TARGET_END_TIME)
-    ? new Date(process.env.HORIZONXT_TARGET_END_TIME || process.env.MEDAITHON_TARGET_END_TIME).getTime()
-    : fallbackStart + TOTAL_36_HOURS_SECONDS * 1000
+  const fallbackEnd = resolveTargetEndTime()
+  const fallbackStart = resolveStartTime(fallbackEnd)
 
   global.__HORIZONXT_TIMER_FALLBACK__ = {
     totalSeconds: TOTAL_36_HOURS_SECONDS,
@@ -38,16 +75,30 @@ export default async function handler(req, res) {
 
     // Helper to get active timer state
     async function getTimerDoc() {
+      const targetEndTime = resolveTargetEndTime()
+      const startTime = resolveStartTime(targetEndTime)
+
       if (collection) {
         let doc = await collection.findOne({ _id: 'horizonxt_36h_timer' })
-        if (!doc) {
-          const startTime = (process.env.HORIZONXT_START_TIME || process.env.MEDAITHON_START_TIME)
-            ? new Date(process.env.HORIZONXT_START_TIME || process.env.MEDAITHON_START_TIME).getTime()
-            : Date.now()
-          const targetEndTime = (process.env.HORIZONXT_TARGET_END_TIME || process.env.MEDAITHON_TARGET_END_TIME)
-            ? new Date(process.env.HORIZONXT_TARGET_END_TIME || process.env.MEDAITHON_TARGET_END_TIME).getTime()
-            : startTime + TOTAL_36_HOURS_SECONDS * 1000
 
+        // Synchronize with authoritative target end time (9:10 AM)
+        if (doc && doc.targetEndTime !== targetEndTime && targetEndTime > Date.now()) {
+          await collection.updateOne(
+            { _id: 'horizonxt_36h_timer' },
+            {
+              $set: {
+                targetEndTime,
+                startTime,
+                isRunning: true,
+                pausedRemainingSeconds: null,
+                updatedAt: Date.now(),
+              }
+            }
+          )
+          doc = await collection.findOne({ _id: 'horizonxt_36h_timer' })
+        }
+
+        if (!doc) {
           doc = {
             _id: 'horizonxt_36h_timer',
             totalSeconds: TOTAL_36_HOURS_SECONDS,
@@ -66,6 +117,11 @@ export default async function handler(req, res) {
           }
         }
         return doc
+      }
+
+      if (global.__HORIZONXT_TIMER_FALLBACK__) {
+        global.__HORIZONXT_TIMER_FALLBACK__.targetEndTime = targetEndTime
+        global.__HORIZONXT_TIMER_FALLBACK__.startTime = startTime
       }
       return global.__HORIZONXT_TIMER_FALLBACK__
     }
@@ -193,6 +249,32 @@ export default async function handler(req, res) {
           ? Math.max(0, Math.floor((newTargetEndTime - now) / 1000))
           : newPaused
 
+        return res.status(200).json({
+          success: true,
+          ...updated,
+          remainingSeconds: remaining,
+          serverTime: now,
+        })
+      }
+
+      if (action === 'set_target' || action === 'set_end_time') {
+        const targetEndTime = body.targetEndTime
+          ? new Date(body.targetEndTime).getTime()
+          : (body.targetTimestamp || (now + (body.remainingSeconds || 3600) * 1000))
+
+        const totalSecs = body.totalSeconds || doc.totalSeconds || TOTAL_36_HOURS_SECONDS
+        const startTime = body.startTime
+          ? new Date(body.startTime).getTime()
+          : (targetEndTime - totalSecs * 1000)
+
+        const remaining = Math.max(0, Math.floor((targetEndTime - now) / 1000))
+        const updated = await updateTimerDoc({
+          startTime,
+          targetEndTime,
+          totalSeconds: totalSecs,
+          isRunning: true,
+          pausedRemainingSeconds: null,
+        })
         return res.status(200).json({
           success: true,
           ...updated,

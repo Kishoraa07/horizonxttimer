@@ -2,6 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 
 export const TOTAL_36_HOURS_SECONDS = 36 * 3600 // 129,600s (36 Hours)
 
+function getSharp910AMTarget() {
+  const d = new Date()
+  d.setHours(9, 10, 0, 0)
+  return d.getTime()
+}
+
 export function useSyncedTimer() {
   const [totalSeconds, setTotalSeconds] = useState(() => {
     const saved = localStorage.getItem('horizonxt_36h_total') || localStorage.getItem('medaithon_50h_total')
@@ -13,28 +19,46 @@ export function useSyncedTimer() {
   })
 
   const [remainingSeconds, setRemainingSeconds] = useState(() => {
+    const d910 = getSharp910AMTarget()
     const savedTarget = localStorage.getItem('horizonxt_36h_target_end')
     const savedRunning = localStorage.getItem('horizonxt_36h_is_running')
-    const isRunning = savedRunning === 'true'
+    const isRunning = savedRunning === null || savedRunning === 'true'
 
     if (savedTarget && isRunning) {
       const target = parseInt(savedTarget, 10)
-      const diff = Math.max(0, Math.floor((target - Date.now()) / 1000))
-      return diff
+      if (target > Date.now()) {
+        const diff = Math.max(0, Math.floor((target - Date.now()) / 1000))
+        if (diff > 0) return diff
+      }
     }
 
     const savedRemaining = localStorage.getItem('horizonxt_36h_remaining')
-    return savedRemaining ? parseInt(savedRemaining, 10) : TOTAL_36_HOURS_SECONDS
+    if (savedRemaining && parseInt(savedRemaining, 10) > 0) {
+      return parseInt(savedRemaining, 10)
+    }
+
+    // Default to Sharp 9:10 AM today
+    const diff910 = Math.floor((d910 - Date.now()) / 1000)
+    if (diff910 > 0) {
+      return diff910
+    }
+
+    return TOTAL_36_HOURS_SECONDS
   })
 
   const [isTimerRunning, setIsTimerRunning] = useState(() => {
     const savedRunning = localStorage.getItem('horizonxt_36h_is_running')
-    return savedRunning !== null ? savedRunning === 'true' : false
+    return savedRunning !== null ? savedRunning === 'true' : true
   })
 
   const [targetEndTime, setTargetEndTime] = useState(() => {
+    const d910 = getSharp910AMTarget()
     const savedTarget = localStorage.getItem('horizonxt_36h_target_end')
-    return savedTarget ? parseInt(savedTarget, 10) : null
+    if (savedTarget) {
+      const target = parseInt(savedTarget, 10)
+      if (target > Date.now()) return target
+    }
+    return d910
   })
 
   const [tenths, setTenths] = useState(0)
@@ -317,6 +341,37 @@ export function useSyncedTimer() {
     }
   }, [playBeep])
 
+  // Explicit target end time setter (e.g., sharp 9:00 AM)
+  const setTargetEndTimeExplicit = useCallback(async (targetTimestamp, customTotal = TOTAL_36_HOURS_SECONDS) => {
+    playBeep(659.25, 'triangle', 0.15, 0.15)
+    const now = Date.now()
+    const remaining = Math.max(0, Math.floor((targetTimestamp - now) / 1000))
+
+    setTargetEndTime(targetTimestamp)
+    setRemainingSeconds(remaining)
+    setTotalSeconds(customTotal)
+    setIsTimerRunning(true)
+
+    localStorage.setItem('horizonxt_36h_target_end', String(targetTimestamp))
+    localStorage.setItem('horizonxt_36h_remaining', String(remaining))
+    localStorage.setItem('horizonxt_36h_is_running', 'true')
+    localStorage.setItem('horizonxt_36h_total', String(customTotal))
+
+    try {
+      await fetch('/api/timer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'set_end_time',
+          targetEndTime: targetTimestamp,
+          totalSeconds: customTotal,
+        }),
+      })
+    } catch (err) {
+      console.warn('Failed to set target end time on /api/timer:', err.message)
+    }
+  }, [playBeep])
+
   // Format helpers
   const hours = Math.floor(remainingSeconds / 3600)
   const minutes = Math.floor((remainingSeconds % 3600) / 60)
@@ -339,6 +394,7 @@ export function useSyncedTimer() {
     togglePlayPause,
     resetTimer,
     adjustTime,
+    setTargetEndTimeExplicit,
     playBeep,
   }
 }

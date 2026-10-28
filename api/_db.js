@@ -1,6 +1,7 @@
 import { MongoClient } from 'mongodb'
 
-const uri = process.env.MONGODB_URI
+// Hardcoded fallback for seamless deployment without Vercel dashboard env setup
+const uri = process.env.MONGODB_URI || 'mongodb+srv://814724104075_db_user:eZASHzHoR2WzQJ8y@cluster0.qi9waxe.mongodb.net/'
 const options = {
   maxPoolSize: 10,
   serverSelectionTimeoutMS: 5000,
